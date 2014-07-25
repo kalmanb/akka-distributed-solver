@@ -15,26 +15,39 @@ object ControllerApp extends App {
 }
 
 object Controller {
-  case class ReadyForWork(num: Int)
-  case class Work(data: Int, required: Int)
-  case class Solution(work: Work)
+  case class ReadyForWork(batchSize: Int)
+  case class Work(problems: Seq[Problem])
+  case class Problem(data: Int, required: Int)
+  case class Solution(work: Work, problem: Problem)
+  case class Processed(work: Work, batchSize: Int)
 }
 
 class Controller extends Actor with ActorLogging {
   import Controller._
 
   def receive = {
-    case ReadyForWork(num) ⇒ {
+    case ReadyForWork(batchSize) ⇒ {
       log.info(s"got new worker $sender")
-      if (Generator.hasNext){
-        log.info("sending work")
-        sender ! Generator.getNext(num)
-      } else {
-        log.info("No more work")
-      }
+      more(batchSize)
     }
-    case Solution(work) => // todo
+    case Processed(work, batchSize) ⇒ {
+      //log.info(s"processed batch $work from $sender")
+      more(batchSize)
+    }
+    case Solution(work, problem) ⇒
+      println("YAY we won! " + problem)
+    // todo
   }
+
+  def more(batchSize: Int) =
+    if (Generator.hasNext) {
+      log.info("sending work")
+      val next = Generator.getNext(batchSize)
+      sender ! Work(next)
+    } else {
+      log.info("No more work")
+    }
+
 }
 
 // Gives us all permutations
@@ -45,9 +58,12 @@ object Generator {
 
   val solutionsFound = Seq.empty[Work]
 
-  def getNext(num: Int):Seq[Work] = (current to num) map {n ⇒
-    current = n + 1
-    Work(n, target)
+  def getNext(batchSize: Int): Seq[Problem] = {
+    println(s"Next batch at $current")
+    (1 to batchSize) map { n ⇒
+      current = current + n
+      Problem(current, target)
+    }
   }
   def hasNext = true
 }
